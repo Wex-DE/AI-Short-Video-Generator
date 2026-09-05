@@ -1,0 +1,9 @@
+# WexAuto User Verification & Device Activation Database
+# Format: <Device_Code>, <Duration_Or_Expiry>, <Status>
+# Durations: 30d, 60d, 90d, 365d, lifetime, or YYYY-MM-DD
+# Statuses: verified, ban
+
+# Sample User Licenses:
+0x1234567890, 30d, verified
+0x3216478900, 60d, ban
+0xABCDEF1234, 2026-12-31, verified
