@@ -7,4 +7,4 @@
 0x1234567890, 30d, verified
 0x3216478900, 60d, ban
 0xABCDEF1234, 2026-12-31, verified
-0xA3558CAEB12, 30d, verified
+0xA3558CAEB1, 30d, verified
