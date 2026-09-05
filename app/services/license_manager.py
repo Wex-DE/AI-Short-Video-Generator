@@ -205,9 +205,19 @@ def get_verification_url() -> str:
     return configured or _DEFAULT_VERIFY_URL
 
 
+def _clear_license_cache() -> None:
+    try:
+        cache_path = _get_cache_path()
+        if os.path.isfile(cache_path):
+            os.remove(cache_path)
+    except Exception:
+        pass
+
+
 def check_device_license(custom_content: Optional[str] = None) -> LicenseCheckResult:
     """
     Evaluates license validity for the current machine.
+    Always fetches live from remote GitHub repository first.
     """
     device_id = get_device_id()
 
@@ -215,27 +225,36 @@ def check_device_license(custom_content: Optional[str] = None) -> LicenseCheckRe
     fetch_error = None
     if content is None:
         url = get_verification_url()
-        local_userverify = os.path.join(utils.root_dir(), "userverify.txt")
-        if os.path.isfile(local_userverify):
-            try:
-                with open(local_userverify, "r", encoding="utf-8") as f:
-                    content = f.read()
-            except Exception as e:
-                logger.warning(f"Error reading local userverify.txt: {e}")
+        try:
+            cache_bust_url = (
+                f"{url}?_t={int(time.time() * 1000)}"
+                if "?" not in url
+                else f"{url}&_t={int(time.time() * 1000)}"
+            )
+            headers = {
+                "User-Agent": "WexAuto-License-Checker/1.0",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+            }
+            resp = requests.get(cache_bust_url, headers=headers, timeout=6)
+            if resp.status_code == 200:
+                content = resp.text
+            else:
+                fetch_error = f"HTTP {resp.status_code}"
+        except Exception as e:
+            fetch_error = str(e)
 
+        # Fallback to local userverify.txt only if network offline
         if content is None:
-            try:
-                cache_bust_url = f"{url}?_t={int(time.time())}" if "?" not in url else f"{url}&_t={int(time.time())}"
-                headers = {"User-Agent": "WexAuto-License-Checker/1.0", "Cache-Control": "no-cache"}
-                resp = requests.get(cache_bust_url, headers=headers, timeout=6)
-                if resp.status_code == 200:
-                    content = resp.text
-                else:
-                    fetch_error = f"HTTP {resp.status_code}"
-            except Exception as e:
-                fetch_error = str(e)
+            local_userverify = os.path.join(utils.root_dir(), "userverify.txt")
+            if os.path.isfile(local_userverify):
+                try:
+                    with open(local_userverify, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except Exception as e:
+                    logger.warning(f"Error reading local userverify.txt: {e}")
 
-    # Fallback to cache if network fails
+    # Fallback to offline cache only if completely offline
     if content is None:
         cached = _load_license_cache(device_id)
         if cached:
@@ -262,6 +281,7 @@ def check_device_license(custom_content: Optional[str] = None) -> LicenseCheckRe
     dev_entry = records.get(device_id.upper())
 
     if not dev_entry:
+        _clear_license_cache()
         return LicenseCheckResult(
             status=LicenseStatus.UNVERIFIED,
             device_id=device_id,
@@ -274,6 +294,7 @@ def check_device_license(custom_content: Optional[str] = None) -> LicenseCheckRe
 
     # Check Ban
     if status in ["ban", "banned", "suspended", "blocked"]:
+        _clear_license_cache()
         return LicenseCheckResult(
             status=LicenseStatus.BANNED,
             device_id=device_id,
