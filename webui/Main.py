@@ -1504,10 +1504,14 @@ def _render_brand(available_update: str | None = None):
             f'aria-label="{update_label}" title="{update_label}">'
             f"{update_label}</a>"
         )
-    lic = license_manager.check_device_license()
+    lic = st.session_state.get("wex_license_result")
     lic_badge = ""
     if lic and lic.is_valid:
-        rem_text = f"{lic.days_remaining}d left" if lic.days_remaining is not None and lic.days_remaining < 9000 else "Active"
+        rem_text = (
+            f"{lic.days_remaining}d left"
+            if lic.days_remaining is not None and lic.days_remaining < 9000
+            else "Active"
+        )
         lic_badge = f'<span style="display:inline-flex; align-items:center; font-size: 11px; background: rgba(0, 230, 118, 0.12); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.4); border-radius: 6px; padding: 3px 8px; margin-left: 10px; font-weight: 600; letter-spacing: 0.5px;">✓ License Verified ({rem_text})</span>'
 
     st.markdown(
@@ -1523,17 +1527,6 @@ def _render_brand(available_update: str | None = None):
     )
 
 
-@st.fragment(run_every="1s")
-def _render_pending_version_check():
-    """检查未完成时只刷新品牌区域，避免阻塞或反复执行整页表单。"""
-    snapshot = version_checker.poll_available_update(config.project_version)
-    if snapshot.complete:
-        # 检查完成后刷新一次整页，让顶部栏改为静态渲染并停止 fragment 轮询。
-        # 该刷新发生在后台请求完成之后，不会延迟初始页面的其它内容。
-        st.rerun(scope="app")
-    _render_brand()
-
-
 def _render_top_bar():
     """渲染品牌、任务管理、设置和语言切换组成的页面顶部栏。"""
     # 顶部栏分为品牌区和操作区两个独立区域。窄屏下由 Streamlit
@@ -1547,10 +1540,7 @@ def _render_top_bar():
 
     with brand_col:
         update_snapshot = version_checker.poll_available_update(config.project_version)
-        if update_snapshot.complete:
-            _render_brand(update_snapshot.available_version)
-        else:
-            _render_pending_version_check()
+        _render_brand(update_snapshot.available_version if update_snapshot.complete else None)
 
     with actions_col:
         with st.container(
@@ -7049,12 +7039,16 @@ def _render_license_lockout(result: license_manager.LicenseCheckResult):
             use_container_width=True,
             type="primary",
         ):
+            st.session_state["wex_license_result"] = license_manager.check_device_license()
             st.rerun(scope="app")
 
 
 def _render_application():
     """按固定顺序渲染顶部栏、弹窗、生成表单和任务结果。"""
-    lic_result = license_manager.check_device_license()
+    if "wex_license_result" not in st.session_state:
+        st.session_state["wex_license_result"] = license_manager.check_device_license()
+    lic_result = st.session_state["wex_license_result"]
+
     if not lic_result.is_valid:
         _render_license_lockout(lic_result)
         st.stop()
