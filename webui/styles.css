@@ -484,3 +484,45 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
         min-width: 1.75rem !important;
     }
 }
+
+/* =============================================================================
+   Main Settings Grid - Equal Height 4-Column Cards
+   ============================================================================= */
+div[class*="st-key-main_settings_grid"] div[data-testid="stHorizontalBlock"] {
+    align-items: stretch !important;
+}
+
+div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+}
+
+div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"],
+div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] > div[data-testid="stLayoutWrapper"],
+div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] > div[data-testid="stLayoutWrapper"] > div[data-testid="stVerticalBlock"] {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    height: 100% !important;
+}
+
+div[class*="st-key-main_settings_grid"] div[data-testid="stVerticalBlockBorderWrapper"] {
+    height: 100% !important;
+    min-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    border-radius: 10px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: #14171d !important;
+}
+
+div[class*="st-key-main_settings_grid"] div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    justify-content: flex-start !important;
+}
+

@@ -42,3 +42,6 @@ htmlcov/
 .codegraph
 /docs/superpowers
 .understand-anything
+*.zip
+*.rar
+*.7z
