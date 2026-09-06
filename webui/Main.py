@@ -4240,7 +4240,7 @@ def _render_loomloom_script_generation(params):
 def _render_script_settings(panel, params):
     """渲染文案设置并更新生成参数。"""
     with panel:
-        with st.container(border=True):
+        with st.container(border=True, key="settings_card_script"):
             st.write(tr("Video Script Settings"))
             # 标签行需要容纳“配置大模型”入口，因此无法继续使用 text_area
             # 内置标签。把标签和输入框收进同一个字段容器后，可覆盖内部间距，
@@ -4431,7 +4431,7 @@ def _render_video_settings(panel, params):
     """渲染视频设置并返回本次选择的本地素材。"""
     uploaded_files = []
     with panel:
-        with st.container(border=True):
+        with st.container(border=True, key="settings_card_video"):
             st.write(tr("Video Settings"))
             video_concat_modes = [
                 (tr("Sequential"), "sequential"),
@@ -5761,7 +5761,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
 def _render_audio_settings(panel, params):
     """渲染音频设置并返回上传音频与当前配音模式。"""
     with panel:
-        with st.container(border=True):
+        with st.container(border=True, key="settings_card_audio"):
             st.write(tr("Audio Settings"))
 
             # 配音方式是音频设置的一级状态，负责明确区分自动配音、用户上传和无配音。
@@ -6271,7 +6271,7 @@ def _render_audio_settings(panel, params):
 def _render_subtitle_settings(panel, params):
     """渲染字幕设置并更新生成参数。"""
     with panel:
-        with st.container(border=True):
+        with st.container(border=True, key="settings_card_subtitle"):
             st.write(tr("Subtitle Settings"))
             st.session_state.setdefault(
                 "subtitle_enabled_checkbox",

@@ -382,22 +382,6 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
     .mpt-brand__version {
         font-size: 0.875rem;
     }
-
-    div[class*="st-key-main_settings_grid"]
-        > div[data-testid="stLayoutWrapper"]
-        > div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-        gap: 1rem !important;
-    }
-
-    div[class*="st-key-main_settings_grid"]
-        > div[data-testid="stLayoutWrapper"]
-        > div[data-testid="stHorizontalBlock"]
-        > div[data-testid="stColumn"] {
-        flex: 1 1 calc(50% - 0.5rem) !important;
-        width: calc(50% - 0.5rem) !important;
-        min-width: calc(50% - 0.5rem) !important;
-    }
 }
 
 /* 移动端隐藏桌面表头，并将任务行重排为“主题 + 元信息 + 操作”紧凑结构。 */
@@ -488,41 +472,66 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
 /* =============================================================================
    Main Settings Grid - Equal Height 4-Column Cards
    ============================================================================= */
-div[class*="st-key-main_settings_grid"] div[data-testid="stHorizontalBlock"] {
+
+/* 4-column Grid layout for the TOP-LEVEL settings row only */
+div[class*="st-key-main_settings_grid"] > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"],
+div[class*="st-key-main_settings_grid"] > div[data-testid="stHorizontalBlock"] {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.85rem !important;
     align-items: stretch !important;
 }
 
-div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] {
+/* Ensure each of the 4 main columns fills its grid cell */
+div[class*="st-key-main_settings_grid"] > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
+div[class*="st-key-main_settings_grid"] > div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+    width: 100% !important;
+    min-width: 0 !important;
     display: flex !important;
     flex-direction: column !important;
     height: 100% !important;
 }
 
-div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"],
-div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] > div[data-testid="stLayoutWrapper"],
-div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] > div[data-testid="stLayoutWrapper"] > div[data-testid="stVerticalBlock"] {
+/* Propagate 100% height through intermediate wrappers */
+div[class*="st-key-main_settings_grid"] > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"],
+div[class*="st-key-main_settings_grid"] > div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"],
+div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] div[data-testid="stLayoutWrapper"]:has(> div[class*="st-key-settings_card_"]),
+div[class*="st-key-main_settings_grid"] div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"] > div[data-testid="stLayoutWrapper"] {
     display: flex !important;
     flex-direction: column !important;
-    flex: 1 1 auto !important;
+    flex: 1 1 100% !important;
     height: 100% !important;
 }
 
-div[class*="st-key-main_settings_grid"] div[data-testid="stVerticalBlockBorderWrapper"] {
+/* The actual Card container with border and background */
+div[class*="st-key-settings_card_"],
+div[class*="st-key-main_settings_grid"] > div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] div[data-testid="stVerticalBlockBorderWrapper"] {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 100% !important;
     height: 100% !important;
     min-height: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    flex: 1 1 auto !important;
-    border-radius: 10px !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
     background: #14171d !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
+    padding: 0.85rem !important;
+    box-sizing: border-box !important;
 }
 
-div[class*="st-key-main_settings_grid"] div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] {
-    display: flex !important;
-    flex-direction: column !important;
-    flex: 1 1 auto !important;
-    height: 100% !important;
-    justify-content: flex-start !important;
+/* Medium screen responsiveness: 2x2 grid */
+@media (min-width: 701px) and (max-width: 1500px) {
+    div[class*="st-key-main_settings_grid"] > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"],
+    div[class*="st-key-main_settings_grid"] > div[data-testid="stHorizontalBlock"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
 }
+
+/* Mobile responsiveness: 1 column */
+@media (max-width: 700px) {
+    div[class*="st-key-main_settings_grid"] > div[data-testid="stLayoutWrapper"] > div[data-testid="stHorizontalBlock"],
+    div[class*="st-key-main_settings_grid"] > div[data-testid="stHorizontalBlock"] {
+        grid-template-columns: 1fr !important;
+    }
+}
+
 
