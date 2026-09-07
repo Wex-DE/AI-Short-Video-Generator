@@ -11,12 +11,32 @@ if not defined MPT_WEBUI_PORT set "MPT_WEBUI_PORT=8501"
 
 set "STREAMLIT_CMD="
 if exist "%CURRENT_DIR%\.venv\Scripts\python.exe" (
-    set "STREAMLIT_CMD="%CURRENT_DIR%\.venv\Scripts\python.exe" -m streamlit"
-) else if exist "%CURRENT_DIR%\lib\python\python.exe" (
-    set "STREAMLIT_CMD="%CURRENT_DIR%\lib\python\python.exe" -m streamlit"
-) else (
+    "%CURRENT_DIR%\.venv\Scripts\python.exe" -c "import streamlit" >nul 2>nul
+    if not errorlevel 1 (
+        set "STREAMLIT_CMD="%CURRENT_DIR%\.venv\Scripts\python.exe" -m streamlit"
+    )
+)
+
+if not defined STREAMLIT_CMD (
+    if exist "%CURRENT_DIR%\lib\python\python.exe" (
+        "%CURRENT_DIR%\lib\python\python.exe" -c "import streamlit" >nul 2>nul
+        if not errorlevel 1 set "STREAMLIT_CMD="%CURRENT_DIR%\lib\python\python.exe" -m streamlit"
+    )
+)
+
+if not defined STREAMLIT_CMD (
     where uv >nul 2>nul
     if not errorlevel 1 set "STREAMLIT_CMD=uv run streamlit"
+)
+
+if not defined STREAMLIT_CMD (
+    if exist "%USERPROFILE%\.local\bin\uv.exe" (
+        set "PATH=%USERPROFILE%\.local\bin;%PATH%"
+        set "STREAMLIT_CMD="%USERPROFILE%\.local\bin\uv.exe" run streamlit"
+    ) else if exist "%USERPROFILE%\.cargo\bin\uv.exe" (
+        set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+        set "STREAMLIT_CMD="%USERPROFILE%\.cargo\bin\uv.exe" run streamlit"
+    )
 )
 
 if not defined STREAMLIT_CMD (
