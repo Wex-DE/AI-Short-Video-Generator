@@ -697,37 +697,43 @@ def create_edge_tts_communicate(
     return edge_tts.Communicate(text, voice_name, **communicate_kwargs)
 
 
-def get_edge_tts_timeout_seconds() -> Union[float, None]:
+def get_edge_tts_timeout_seconds(text: str = "") -> Union[float, None]:
     """
     获取 Azure TTS V1 单次流式请求的超时时间。
 
     背景：
     Edge consumer TTS 在网络不通、服务端限流、voice 与文本语言不匹配等场景下，
     可能长时间卡在 `stream_sync()` 内部，日志只停留在 `start`。这里提供一个
-    默认超时，避免 WebUI 任务长期无反馈。
+    动态自适应超时机制：短文本快速失败，长文本（15-20+ 分钟视频，2000-3000+ 词）
+    提供足够充裕的流式传输时间（300~900 秒），避免超时中断。
 
     使用方式：
-    - 默认 30 秒，覆盖常见短视频脚本的首包等待时间；
-    - 如用户处于慢网络或代理环境，可在 `config.toml` 里设置
-      `edge_tts_timeout = 60`；
+    - 默认按文本长度自适应：短脚本保底 60s，长脚本自动按字符数增加到 300~900s；
+    - 兼容老配置中的 `edge_tts_timeout = 30`，自动升级为动态自适应超时；
+    - 如用户设置了其它自定义超时（例如 300 或测试中的 0.05），优先采用用户显式设置的值；
     - 设置为 0 或负数表示显式禁用超时，保留完全向后兼容。
     """
-    raw_timeout = config.app.get(
-        "edge_tts_timeout", _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS
-    )
-    try:
-        timeout_seconds = float(raw_timeout)
-    except (TypeError, ValueError):
-        logger.warning(
-            "invalid edge_tts_timeout: "
-            f"{raw_timeout}, fallback to {_DEFAULT_EDGE_TTS_TIMEOUT_SECONDS}s"
-        )
-        timeout_seconds = _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS
+    raw_timeout = config.app.get("edge_tts_timeout", None)
+    text_len = len(text) if text else 0
+    # 自适应计算超时：短脚本（<=100字）固定 60s；长脚本超出部分每 100 字符增加 3s，最高上限 900s (15分钟)
+    scaled_timeout = max(60.0, min(900.0, 60.0 + max(0.0, float(text_len - 100)) * 0.03))
 
-    if timeout_seconds <= 0:
-        return None
+    if raw_timeout is not None:
+        try:
+            timeout_seconds = float(raw_timeout)
+            if timeout_seconds <= 0:
+                return None
+            # 旧版默认值为 30s，在长视频场景下必然超时，此处自动升级为动态自适应超时
+            if timeout_seconds == 30.0:
+                return scaled_timeout
+            return timeout_seconds
+        except (TypeError, ValueError):
+            logger.warning(
+                "invalid edge_tts_timeout: "
+                f"{raw_timeout}, fallback to auto-scaled timeout"
+            )
 
-    return timeout_seconds
+    return scaled_timeout
 
 
 def _stream_edge_tts_sync_with_timeout(
@@ -846,7 +852,7 @@ def azure_tts_v1(
             ensure_file_path_exists(voice_file)
             communicate = create_edge_tts_communicate(text, voice_name, rate_str)
             sub_maker = edge_tts.SubMaker()
-            timeout_seconds = get_edge_tts_timeout_seconds()
+            timeout_seconds = get_edge_tts_timeout_seconds(text)
 
             with open(voice_file, "wb") as file:
                 def _handle_chunk(chunk):

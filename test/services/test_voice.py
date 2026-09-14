@@ -365,6 +365,28 @@ class TestVoiceService(unittest.TestCase):
         self.assertIsNone(sub_maker)
         self.assertLess(elapsed, 2)
 
+    def test_get_edge_tts_timeout_seconds(self):
+        # Default with no config or None: auto-scales
+        with patch.object(vs.config, "app", {}):
+            self.assertEqual(vs.get_edge_tts_timeout_seconds("hello"), 60.0)
+            long_text = "a" * 15000
+            timeout = vs.get_edge_tts_timeout_seconds(long_text)
+            self.assertGreaterEqual(timeout, 500.0)
+            self.assertLessEqual(timeout, 900.0)
+
+        # Legacy config edge_tts_timeout=30 is auto-upgraded for long text
+        with patch.object(vs.config, "app", {"edge_tts_timeout": 30}):
+            self.assertEqual(vs.get_edge_tts_timeout_seconds("hello"), 60.0)
+            self.assertGreaterEqual(vs.get_edge_tts_timeout_seconds("a" * 15000), 500.0)
+
+        # Respect custom config if set
+        with patch.object(vs.config, "app", {"edge_tts_timeout": 120.0}):
+            self.assertEqual(vs.get_edge_tts_timeout_seconds("a" * 15000), 120.0)
+
+        # Disabled if set to <= 0
+        with patch.object(vs.config, "app", {"edge_tts_timeout": 0}):
+            self.assertIsNone(vs.get_edge_tts_timeout_seconds("a" * 15000))
+
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,
         "MPT_RUN_INTEGRATION_TESTS not set",
