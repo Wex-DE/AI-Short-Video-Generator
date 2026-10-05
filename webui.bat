@@ -36,6 +36,15 @@ if not defined STREAMLIT_CMD (
     ) else if exist "%USERPROFILE%\.cargo\bin\uv.exe" (
         set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
         set "STREAMLIT_CMD="%USERPROFILE%\.cargo\bin\uv.exe" run streamlit"
+    ) else if exist "%LOCALAPPDATA%\uv\uv.exe" (
+        set "PATH=%LOCALAPPDATA%\uv;%PATH%"
+        set "STREAMLIT_CMD="%LOCALAPPDATA%\uv\uv.exe" run streamlit"
+    ) else if exist "%APPDATA%\uv\uv.exe" (
+        set "PATH=%APPDATA%\uv;%PATH%"
+        set "STREAMLIT_CMD="%APPDATA%\uv\uv.exe" run streamlit"
+    ) else if exist "%LOCALAPPDATA%\Programs\uv\uv.exe" (
+        set "PATH=%LOCALAPPDATA%\Programs\uv;%PATH%"
+        set "STREAMLIT_CMD="%LOCALAPPDATA%\Programs\uv\uv.exe" run streamlit"
     )
 )
 

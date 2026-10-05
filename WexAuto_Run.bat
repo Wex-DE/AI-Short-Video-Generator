@@ -27,15 +27,33 @@ if "%ENV_HEALTHY%"=="0" (
     ) else if exist "%USERPROFILE%\.cargo\bin\uv.exe" (
         set "UV_CMD=%USERPROFILE%\.cargo\bin\uv.exe"
         set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+    ) else if exist "%LOCALAPPDATA%\uv\uv.exe" (
+        set "UV_CMD=%LOCALAPPDATA%\uv\uv.exe"
+        set "PATH=%LOCALAPPDATA%\uv;%PATH%"
+    ) else if exist "%APPDATA%\uv\uv.exe" (
+        set "UV_CMD=%APPDATA%\uv\uv.exe"
+        set "PATH=%APPDATA%\uv;%PATH%"
+    ) else if exist "%LOCALAPPDATA%\Programs\uv\uv.exe" (
+        set "UV_CMD=%LOCALAPPDATA%\Programs\uv\uv.exe"
+        set "PATH=%LOCALAPPDATA%\Programs\uv;%PATH%"
     ) else (
         echo [Info] Installing runtime manager (uv)...
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13; irm https://astral.sh/uv/install.ps1 | iex"
         if exist "%USERPROFILE%\.local\bin\uv.exe" (
             set "UV_CMD=%USERPROFILE%\.local\bin\uv.exe"
             set "PATH=%USERPROFILE%\.local\bin;%PATH%"
         ) else if exist "%USERPROFILE%\.cargo\bin\uv.exe" (
             set "UV_CMD=%USERPROFILE%\.cargo\bin\uv.exe"
             set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+        ) else if exist "%LOCALAPPDATA%\uv\uv.exe" (
+            set "UV_CMD=%LOCALAPPDATA%\uv\uv.exe"
+            set "PATH=%LOCALAPPDATA%\uv;%PATH%"
+        ) else if exist "%APPDATA%\uv\uv.exe" (
+            set "UV_CMD=%APPDATA%\uv\uv.exe"
+            set "PATH=%APPDATA%\uv;%PATH%"
+        ) else if exist "%LOCALAPPDATA%\Programs\uv\uv.exe" (
+            set "UV_CMD=%LOCALAPPDATA%\Programs\uv\uv.exe"
+            set "PATH=%LOCALAPPDATA%\Programs\uv;%PATH%"
         )
     )
     
