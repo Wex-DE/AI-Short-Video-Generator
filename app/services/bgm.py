@@ -13,7 +13,7 @@ from app.utils import file_security, utils
 
 # Streamlit 默认允许较大的上传文件，但背景音乐通常只有几 MB。这里设置明确的
 # 服务端上限，避免 API 或 WebUI 把超大文件完整写入磁盘，影响同一进程中的视频任务。
-MAX_BGM_UPLOAD_BYTES = 30 * 1024 * 1024
+MAX_BGM_UPLOAD_BYTES = 250 * 1024 * 1024
 _COPY_CHUNK_BYTES = 1024 * 1024
 _INTERNAL_UPLOAD_PREFIX = ".bgm-upload-"
 _WINDOWS_INVALID_FILENAME_CHARS = frozenset('<>:"|?*')
@@ -204,7 +204,9 @@ def _stage_bgm_upload(filename: str, source: BinaryIO) -> tuple[str, str, int]:
                     raise BgmUploadError("background music upload must be binary")
                 total_bytes += len(chunk)
                 if total_bytes > MAX_BGM_UPLOAD_BYTES:
-                    raise BgmUploadError("background music file exceeds the 30 MB limit")
+                    raise BgmUploadError(
+                        f"audio file exceeds the {MAX_BGM_UPLOAD_BYTES // (1024 * 1024)} MB limit"
+                    )
                 output.write(chunk)
             output.flush()
             os.fsync(output.fileno())
