@@ -4,4 +4,4 @@
 # Statuses: verified, ban
 
 # Sample User Licenses:
-0x8D546AF461, lifetime, verified
+0x4E2E8119B3, lifetime, verified
