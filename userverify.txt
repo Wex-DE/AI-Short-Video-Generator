@@ -5,3 +5,4 @@
 
 # Sample User Licenses:
 0x88513AE920, 90d, verified
+0xA3558CAEB1, lifetime, verified
