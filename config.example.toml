@@ -193,6 +193,18 @@ openai_image_size = ""
 # Example: "cinematic photo of {term}, photorealistic, high detail"
 openai_image_prompt_template = ""
 
+# Pollinations.ai free text-to-image material source ("pollinations").
+# 100% free, zero configuration, no API key or account needed.
+# Generates images on demand and turns them into zoom video clips.
+# Optional model name: leave empty to use the default high-quality model (Flux/Sana),
+# or specify a model name.
+pollinations_image_model = ""
+# Optional custom image resolution (e.g. "720x1280" or "1280x720"). Leave empty
+# to automatically choose resolution based on the video aspect ratio.
+pollinations_image_size = ""
+# Prompt template for Pollinations images. Use {term} as placeholder.
+pollinations_image_prompt_template = "Minimalist 2D hand-drawn stick figure illustration of {term}, white circle head with simple expressive dot eyes, clean black ink outlines, warm muted flat color background, whiteboard webcomic style, doodle art"
+
 # Optional TwelveLabs integration for semantic material ranking and video QA.
 # Install the optional dependency with: uv sync --extra twelvelabs
 # Create an API key at https://playground.twelvelabs.io/

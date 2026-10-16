@@ -1521,44 +1521,301 @@ def _download_videos_openai_image_on_demand(
         _persist_material_sources(task_id, material_sources)
         return video_paths
 
-    for search_term in search_terms:
-        items = generate_images_openai(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-            save_dir=material_directory,
-        )
-        for item in items:
-            video_file = _render_openai_image_video(item.url, max_clip_duration)
-            if not video_file:
-                continue
-            logger.info(f"image material rendered: {video_file}")
-            video_paths.append(video_file)
-            try:
-                material_sources.append(_material_source_record(item, video_file))
-            except Exception as source_error:
-                # 与库存源一致：来源记录异常不能把已经付费生成并成功渲染的
-                # 素材当作失败，更不能阻断视频生成。
-                logger.warning(
-                    "failed to prepare generated material source record: "
-                    f"provider=openai_image, "
-                    f"error={type(source_error).__name__}, detail={source_error}"
-                )
-            total_duration += min(max_clip_duration, item.duration)
-            # 与 WaveSpeed 相同用 >= 判断：恰好凑够时再生成一张就多付一次费。
-            # 内外两处判断必须保持同一语义。
-            if total_duration >= required_duration:
-                break
-        if total_duration >= required_duration:
-            logger.info(
-                "generated image materials cover the required duration, stop "
-                f"generating more images: generated={total_duration:.1f}s, "
-                f"required={required_duration:.1f}s"
+    effective_terms = [t.strip() for t in search_terms if t and t.strip()]
+    if not effective_terms:
+        effective_terms = ["story scene", "illustration", "cinematic backdrop"]
+
+    max_loops = 10
+    loop_count = 0
+    while total_duration < required_duration and loop_count < max_loops:
+        loop_count += 1
+        for search_term in effective_terms:
+            items = generate_images_openai(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+                save_dir=material_directory,
             )
-            break
+            for item in items:
+                video_file = _render_openai_image_video(item.url, max_clip_duration)
+                if not video_file:
+                    continue
+                logger.info(f"image material rendered: {video_file}")
+                video_paths.append(video_file)
+                try:
+                    material_sources.append(_material_source_record(item, video_file))
+                except Exception as source_error:
+                    # 与库存源一致：来源记录异常不能把已经付费生成并成功渲染的
+                    # 素材当作失败，更不能阻断视频生成。
+                    logger.warning(
+                        "failed to prepare generated material source record: "
+                        f"provider=openai_image, "
+                        f"error={type(source_error).__name__}, detail={source_error}"
+                    )
+                total_duration += min(max_clip_duration, item.duration)
+                # 与 WaveSpeed 相同用 >= 判断：恰好凑够时再生成一张就多付一次费。
+                # 内外两处判断必须保持同一语义。
+                if total_duration >= required_duration:
+                    break
+            if total_duration >= required_duration:
+                logger.info(
+                    "generated image materials cover the required duration, stop "
+                    f"generating more images: generated={total_duration:.1f}s, "
+                    f"required={required_duration:.1f}s"
+                )
+                break
 
     logger.success(f"generated and rendered {len(video_paths)} image materials")
     _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+POLLINATIONS_DEFAULT_PROMPT_TEMPLATE = (
+    "Minimalist 2D hand-drawn stick figure illustration of {term}, "
+    "white circle head with simple expressive dot eyes, clean black ink outlines, "
+    "warm muted flat color background, whiteboard webcomic style, doodle art"
+)
+
+POLLINATIONS_DEFAULT_SIZES = {
+    VideoAspect.portrait: (720, 1280),
+    VideoAspect.landscape: (1280, 720),
+    VideoAspect.square: (1024, 1024),
+}
+POLLINATIONS_ENDPOINT_BASE = "https://image.pollinations.ai/prompt"
+POLLINATIONS_MAX_ATTEMPTS = 3
+POLLINATIONS_RETRY_BACKOFF_SECONDS = (3, 6, 12)
+POLLINATIONS_REQUEST_TIMEOUT = (15, 90)
+
+
+def is_pollinations_enabled(app_config: dict | None = None) -> bool:
+    """Pollinations.ai is 100% free and requires no API key or configuration."""
+    return True
+
+
+def _pollinations_image_dimensions(video_aspect: VideoAspect) -> tuple[int, int]:
+    configured = str(config.app.get("pollinations_image_size", "") or "").strip()
+    if configured and "x" in configured.lower():
+        try:
+            parts = configured.lower().split("x")
+            w, h = int(parts[0].strip()), int(parts[1].strip())
+            if w > 0 and h > 0:
+                return w, h
+        except (ValueError, IndexError):
+            pass
+    return POLLINATIONS_DEFAULT_SIZES.get(VideoAspect(video_aspect), (720, 1280))
+
+
+def _pollinations_image_prompt(search_term: str) -> str:
+    template = str(
+        config.app.get("pollinations_image_prompt_template", "")
+        or config.app.get("ai_image_prompt_template", "")
+        or ""
+    ).strip()
+    if not template:
+        template = POLLINATIONS_DEFAULT_PROMPT_TEMPLATE
+    if "{term}" in template:
+        return template.replace("{term}", search_term)
+    return f"{template} {search_term}"
+
+
+def _request_pollinations_image(
+    prompt: str,
+    width: int,
+    height: int,
+    model: str = "",
+) -> tuple[bytes | None, str]:
+    seed = random.randint(1000, 99999999)
+    encoded_prompt = quote_plus(prompt.strip())
+    params_dict = {
+        "width": width,
+        "height": height,
+        "seed": seed,
+        "nologo": "true",
+    }
+    if model:
+        params_dict["model"] = model
+    query_str = urlencode(params_dict)
+    url = f"{POLLINATIONS_ENDPOINT_BASE}/{encoded_prompt}?{query_str}"
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
+    verify_ssl = bool(config.app.get("tls_verify", True))
+
+    last_error = ""
+    for attempt in range(1, POLLINATIONS_MAX_ATTEMPTS + 1):
+        try:
+            resp = requests.get(
+                url,
+                headers=headers,
+                timeout=POLLINATIONS_REQUEST_TIMEOUT,
+                verify=verify_ssl,
+            )
+            if resp.status_code == 200:
+                content = resp.content
+                if len(content) > 1000:
+                    return content, ""
+                last_error = (
+                    f"Pollinations returned response too small ({len(content)} bytes)"
+                )
+            else:
+                last_error = (
+                    f"Pollinations HTTP {resp.status_code}: {resp.text[:200]}"
+                )
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+
+        if attempt < POLLINATIONS_MAX_ATTEMPTS:
+            backoff = POLLINATIONS_RETRY_BACKOFF_SECONDS[
+                min(attempt - 1, len(POLLINATIONS_RETRY_BACKOFF_SECONDS) - 1)
+            ]
+            logger.warning(
+                f"pollinations image request failed, retrying: "
+                f"attempt={attempt}/{POLLINATIONS_MAX_ATTEMPTS}, "
+                f"backoff={backoff}s, error={last_error}"
+            )
+            time.sleep(backoff)
+
+    return None, last_error
+
+
+def generate_images_pollinations(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    save_dir: str = "",
+) -> List[MaterialInfo]:
+    """
+    通过 Pollinations.ai 免费为一个关键词生成一张高质量图片并规范保存为本地 PNG。
+    零成本、无需 API Key。
+    """
+    aspect = VideoAspect(video_aspect)
+    clip_duration = max(int(minimum_duration), 1)
+    width, height = _pollinations_image_dimensions(aspect)
+    model = str(config.app.get("pollinations_image_model", "") or "").strip()
+    full_prompt = _pollinations_image_prompt(search_term)
+
+    logger.info(
+        f"generating image via pollinations.ai: term={search_term!r}, "
+        f"dims={width}x{height}, prompt={full_prompt[:120]!r}..."
+    )
+    image_bytes, failure_detail = _request_pollinations_image(
+        prompt=full_prompt,
+        width=width,
+        height=height,
+        model=model,
+    )
+    if image_bytes is None:
+        logger.error(
+            f"pollinations image generation failed: term={search_term!r}, "
+            f"detail={failure_detail}"
+        )
+        return []
+
+    try:
+        image_path, out_w, out_h = _save_openai_image_file(image_bytes, save_dir)
+    except _OpenAIImageDecodeError as e:
+        logger.error(
+            "pollinations response is not a decodable image, skipping term: "
+            f"term={search_term!r}, error={type(e).__name__}, detail={e}"
+        )
+        return []
+
+    item = MaterialInfo()
+    item.provider = "pollinations"
+    item.url = image_path
+    item.duration = clip_duration
+    item.source_info = {
+        "provider": "pollinations",
+        "search_term": search_term,
+        "rendition": {
+            "id": None,
+            "width": out_w,
+            "height": out_h,
+        },
+    }
+    return [item]
+
+
+def _download_videos_pollinations_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """
+    按脚本片段顺序逐张通过 Pollinations.ai 免费生成文生图素材，凑够所需总时长立即停止。
+    如果关键词数量少于所需时长，循环复用关键词生成新随机种子图，保证成片时长完全覆盖。
+    """
+    if not material_directory:
+        material_directory = utils.task_dir(task_id)
+
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+    total_duration = 0.0
+
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError):
+        required_duration = 0.0
+    if required_duration <= 0:
+        logger.warning(
+            "skip pollinations image generation because required audio duration is "
+            f"not positive: duration={audio_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    effective_terms = [t.strip() for t in search_terms if t and t.strip()]
+    if not effective_terms:
+        effective_terms = ["story scene", "illustration", "cinematic backdrop"]
+
+    max_loops = 10
+    loop_count = 0
+    while total_duration < required_duration and loop_count < max_loops:
+        loop_count += 1
+        for search_term in effective_terms:
+            items = generate_images_pollinations(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+                save_dir=material_directory,
+            )
+            for item in items:
+                video_file = _render_openai_image_video(item.url, max_clip_duration)
+                if not video_file:
+                    continue
+                logger.info(f"pollinations image material rendered: {video_file}")
+                video_paths.append(video_file)
+                try:
+                    material_sources.append(_material_source_record(item, video_file))
+                except Exception as source_error:
+                    logger.warning(
+                        "failed to prepare pollinations material source record: "
+                        f"error={type(source_error).__name__}, detail={source_error}"
+                    )
+                total_duration += min(max_clip_duration, item.duration)
+                if total_duration >= required_duration:
+                    break
+            if total_duration >= required_duration:
+                logger.info(
+                    "pollinations image materials cover the required duration: "
+                    f"generated={total_duration:.1f}s, required={required_duration:.1f}s"
+                )
+                break
+
+    _persist_material_sources(task_id, material_sources)
+    logger.success(
+        f"generated and rendered {len(video_paths)} pollinations image materials"
+    )
     return video_paths
 
 
@@ -1734,6 +1991,15 @@ def download_videos(
         # 但任务查询路径和响应结构不同，因此只共享本地按需生成语义，不复用
         # 供应商客户端，避免协议差异渗入素材编排层。
         return _download_videos_metaso_minimax_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
+    if source == "pollinations":
+        return _download_videos_pollinations_on_demand(
             task_id=task_id,
             search_terms=search_terms,
             video_aspect=video_aspect,

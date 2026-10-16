@@ -117,8 +117,42 @@ VIDEO_SOURCE_GROUPS = {
         "wavespeed",
         "ofox",
     ),
-    "ai_image": ("openai_image",),
+    "ai_image": (
+        "pollinations",
+        "openai_image",
+    ),
     "local": ("local",),
+}
+
+AI_IMAGE_STYLE_PRESETS = {
+    "stick_figure": {
+        "label": "2D Stick Figure / Doodle (Pursuit of Wonder / MinutePhysics)",
+        "template": "Minimalist 2D hand-drawn stick figure illustration of {term}, white circle head with simple expressive dot eyes, clean black ink outlines, warm muted flat color background, whiteboard webcomic style, doodle art",
+    },
+    "cinematic": {
+        "label": "Cinematic Hyperrealistic Photo",
+        "template": "Hyperrealistic cinematic photograph of {term}, 8k resolution, photorealistic, dramatic atmospheric lighting, shallow depth of field, high detail",
+    },
+    "anime_ghibli": {
+        "label": "Anime / Studio Ghibli Aesthetic",
+        "template": "Studio Ghibli style, beautiful aesthetic anime illustration of {term}, hand-painted scenery, vibrant lush colors, soft whimsical lighting",
+    },
+    "storybook_watercolor": {
+        "label": "Vintage Storybook Watercolor",
+        "template": "Charming children storybook illustration of {term}, soft textured watercolor painting, warm pastel tones, artistic gentle aesthetic",
+    },
+    "cyberpunk": {
+        "label": "Cyberpunk / Neon Sci-Fi",
+        "template": "Cyberpunk futuristic scene of {term}, glowing neon signs, moody dark atmosphere, synthwave aesthetic, intricate details",
+    },
+    "vintage_comic": {
+        "label": "Vintage Retro Comic Book",
+        "template": "Vintage retro comic book illustration of {term}, halftone dots, bold ink lines, 1970s graphic novel style, muted vintage colors",
+    },
+    "custom": {
+        "label": "Custom Prompt Template",
+        "template": "{term}",
+    },
 }
 # Upload-Post 的 API Key 与发布用户分别在两个页面管理，并且发布用户名称
 # 不等于登录邮箱。集中维护入口可以避免多语言文案各自硬编码 URL 后发生偏差，
@@ -3610,6 +3644,36 @@ def _render_settings_dialog():
             with st.container(border=True):
                 st.markdown(f"#### {tr('AI Image Generation APIs')}")
                 st.caption(tr("AI Image Generation APIs Help"))
+
+                st.markdown(f"**{tr('Pollinations AI Image (Free & Unlimited)')}**")
+                st.caption(tr("Pollinations AI Image Notice"))
+                pollinations_image_model = st.text_input(
+                    tr("Pollinations Model"),
+                    value=str(config.app.get("pollinations_image_model", "") or ""),
+                    placeholder="flux, sana (leave empty for best default)",
+                    help=tr("Pollinations Model Help"),
+                    key="pollinations_image_model_input",
+                )
+                _set_runtime_config(
+                    "app", "pollinations_image_model", pollinations_image_model.strip()
+                )
+
+                with st.expander(
+                    tr("Pollinations Image Advanced Settings"), expanded=False
+                ):
+                    pollinations_image_size = st.text_input(
+                        tr("Pollinations Image Size"),
+                        value=str(config.app.get("pollinations_image_size", "") or ""),
+                        placeholder="720x1280 (leave empty for auto aspect ratio)",
+                        help=tr("Pollinations Image Size Help"),
+                        key="pollinations_image_size_input",
+                    )
+                    _set_runtime_config(
+                        "app", "pollinations_image_size", pollinations_image_size.strip()
+                    )
+
+                st.divider()
+
                 st.markdown(f"**{tr('OpenAI Compatible Text-to-Image')}**")
 
                 openai_image_base_url = st.text_input(
@@ -4446,6 +4510,7 @@ def _render_video_settings(panel, params):
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
+                "pollinations": tr("Pollinations AI Image (Free & Unlimited)"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "local": tr("Local file"),
             }
@@ -4476,6 +4541,78 @@ def _render_video_settings(panel, params):
                 st.caption(tr("OFox AI Video Help"))
             if params.video_source == "metaso_minimax":
                 st.caption(tr("Metaso MiniMax H3 Help"))
+            if params.video_source in ["pollinations", "openai_image"]:
+                st.caption(
+                    tr("Pollinations AI Image Help")
+                    if params.video_source == "pollinations"
+                    else tr("OpenAI Compatible Image Help")
+                )
+                cfg_template_key = (
+                    "pollinations_image_prompt_template"
+                    if params.video_source == "pollinations"
+                    else "openai_image_prompt_template"
+                )
+                saved_template = str(
+                    config.app.get(cfg_template_key, "") or ""
+                ).strip()
+                if not saved_template and params.video_source == "pollinations":
+                    saved_template = AI_IMAGE_STYLE_PRESETS["stick_figure"]["template"]
+
+                style_keys = list(AI_IMAGE_STYLE_PRESETS.keys())
+                current_preset = st.session_state.get("ai_image_style_preset")
+                if not current_preset or current_preset not in style_keys:
+                    current_preset = "custom"
+                    for k, val in AI_IMAGE_STYLE_PRESETS.items():
+                        if k != "custom" and val["template"] == saved_template:
+                            current_preset = k
+                            break
+                    if current_preset == "custom" and not saved_template:
+                        current_preset = "stick_figure"
+                        saved_template = AI_IMAGE_STYLE_PRESETS["stick_figure"]["template"]
+                    st.session_state["ai_image_style_preset"] = current_preset
+
+                if "ai_image_prompt_template_val" not in st.session_state:
+                    st.session_state["ai_image_prompt_template_val"] = (
+                        saved_template
+                        or AI_IMAGE_STYLE_PRESETS["stick_figure"]["template"]
+                    )
+
+                def _on_style_preset_change():
+                    selected_k = st.session_state.get("ai_image_style_select")
+                    if selected_k and selected_k != "custom":
+                        tmpl = AI_IMAGE_STYLE_PRESETS[selected_k]["template"]
+                        st.session_state["ai_image_prompt_template_val"] = tmpl
+                        st.session_state["ai_image_prompt_template_textarea"] = tmpl
+                        _set_runtime_config("app", cfg_template_key, tmpl)
+
+                st.selectbox(
+                    tr("Image Art Style"),
+                    options=style_keys,
+                    index=(
+                        style_keys.index(current_preset)
+                        if current_preset in style_keys
+                        else 0
+                    ),
+                    format_func=lambda k: tr(AI_IMAGE_STYLE_PRESETS[k]["label"]),
+                    key="ai_image_style_select",
+                    on_change=_on_style_preset_change,
+                    help=tr("Image Art Style Help"),
+                )
+
+                prompt_template_text = st.text_area(
+                    tr("Custom Prompt Template"),
+                    value=st.session_state.get(
+                        "ai_image_prompt_template_val", saved_template
+                    ),
+                    key="ai_image_prompt_template_textarea",
+                    help=tr("Custom Prompt Template Help"),
+                    rows=3,
+                )
+                if prompt_template_text.strip() != saved_template:
+                    _set_runtime_config(
+                        "app", cfg_template_key, prompt_template_text.strip()
+                    )
+
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -6648,6 +6785,7 @@ def _render_generation_controls(
             "ofox",
             "metaso_minimax",
             "loomloom",
+            "pollinations",
             "openai_image",
             "local",
         ]:
