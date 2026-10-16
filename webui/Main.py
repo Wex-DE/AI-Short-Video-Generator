@@ -4606,7 +4606,7 @@ def _render_video_settings(panel, params):
                     ),
                     key="ai_image_prompt_template_textarea",
                     help=tr("Custom Prompt Template Help"),
-                    rows=3,
+                    height=100,
                 )
                 if prompt_template_text.strip() != saved_template:
                     _set_runtime_config(
